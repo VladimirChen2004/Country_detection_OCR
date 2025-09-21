@@ -121,26 +121,37 @@ pip install scikit-learn pandas numpy matplotlib seaborn torch torchvision
 ### Пример инференса:
 ```python
 # Загрузка модели
-ocr_model = PaddleOCR(use_angle_cls=True, lang='en')
-classifier = joblib.load('country_classifier.pkl')
+!git clone https://github.com/PaddlePaddle/PaddleOCR.git
 
-# Предсказание для нового изображения
-def predict_country(image_path):
-    # Извлечение текста
-    results = ocr_model.ocr(image_path, cls=True)
-    text = ' '.join([line[1][0] for line in results[0]])
-    
-    # Предсказание страны
-    country = classifier.predict([text])[0]
-    return country
+# Обучение с расширенным датасетом
+!python /kaggle/working/PaddleOCR/tools/train.py -c /kaggle/working/country_code_rec_config_augmented.yml
+
+# Экспорт модели
+!python /kaggle/working/PaddleOCR/tools/export_model.py -c /kaggle/working/country_code_rec_config_augmented.yml \
+  -o Global.pretrained_model=/kaggle/working/country_code_rec_model_augmented/best_accuracy \
+     Global.save_inference_dir=/kaggle/working/country_code_rec_infer_augmented
+
+# Тестирование модели
+!python3 /kaggle/working/PaddleOCR/tools/eval.py \
+  -c /kaggle/working/country_code_rec_config_augmented.yml \
+  -o Global.pretrained_model=/kaggle/working/country_code_rec_model_augmented/best_model/model.pdparams
+
+# Предсказание модели по фото (предсказание сразу для всей папке)
+!python3 /kaggle/working/PaddleOCR/tools/infer/predict_rec.py \
+  --image_dir /kaggle/working/test_images_all \
+  --rec_model_dir /kaggle/working/country_code_rec_infer_augmented \
+  --rec_char_dict_path /kaggle/working/dict_country_codes.txt \
+  --rec_image_shape "3,32,320" \
+  2>&1 | tee /kaggle/working/rec_out_all/predict_rec_all.log
+
 ```
 
 ## Результаты и производительность
 
 ### Достигнутые метрики:
-- **Точность (Accuracy)**: ~XX% на тестовой выборке
-- **Время inference**: 0.X секунды на изображение
-- **F1-score**: XX.X% средний по всем классам
+- **Точность (Accuracy)**: до 100% на тестовой выборке
+- **Время inference**: 1440 фото менее чем за секунлу
+- **F1-score**: до 100% средний по всем классам
 
 ### Преимущества подхода:
 1. **Быстродействие**: OCR + простая классификация
@@ -160,6 +171,24 @@ def predict_country(image_path):
 3. **Computer Vision**: добавление визуальных признаков (цвета, логотипы)
 4. **Active Learning**: улучшение модели на новых данных
 5. **Deployment optimization**: TensorRT/ONNX для ускорения
+
+## Метрики по тестовой выборке с аугументацией 
+
+- Accuracy: 0.8521
+- f1: 0.91
+
+## Метрики по тестовой выборке без аугментации (оригинальные фото)
+
+- Accuracy: 1.0000
+- f1: 1.00
+
+## Проблемы реализации 
+
+- почти невозможно было использовать дообученную модель
+
+Была проблема с тем, что адекватно модель реализуется только через терминал / консольные команды. Через объект модели в переменной было невозможно загрузить дообученную модель - тут скорее всего проблема в том, что там можно использовать только официальные модели.
+
+- Есть проблемы с распознованием текста, иногда текст сканируется некорректно, то наверняка вылетит другая метрика
 
 ## Заключение
 
